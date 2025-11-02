@@ -27,7 +27,7 @@ export default function ProductTable({
     : items;
 
   return (
-    <Card className="shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-0">
+    <Card className="bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-0">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">

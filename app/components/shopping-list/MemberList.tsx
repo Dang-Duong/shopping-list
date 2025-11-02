@@ -41,7 +41,7 @@ export default function MemberList({
     !isOwner && allMembers.some((m) => m.id === currentUserId);
 
   return (
-    <Card className="shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-0">
+    <Card className="bg-white shadow-[0_4px_6px_-1px_rgba(0,0,0,0.1),0_2px_4px_-1px_rgba(0,0,0,0.06)] border-0">
       <CardHeader className="pb-3">
         <h2 className="text-xl font-semibold">Members</h2>
       </CardHeader>
@@ -54,10 +54,12 @@ export default function MemberList({
           return (
             <div
               key={member.id}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+              className="flex items-center justify-between p-3 bg-white rounded-lg"
             >
               <div className="flex items-center gap-3">
-                <UserIcon className="h-5 w-5 text-gray-600" />
+                <div className="h-10 w-10 rounded-full border-2 border-gray-300 bg-gray-100 flex items-center justify-center shrink-0">
+                  <UserIcon className="h-5 w-5 text-gray-600" />
+                </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-900">

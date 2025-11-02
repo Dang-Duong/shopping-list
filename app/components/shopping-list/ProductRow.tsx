@@ -16,7 +16,7 @@ export default function ProductRow({
   onToggleDone,
 }: ProductRowProps) {
   return (
-    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+    <div className="flex items-center justify-between p-3 bg-white rounded-lg hover:bg-gray-50 transition-colors">
       <div className="flex items-center gap-3 flex-1">
         <Checkbox
           checked={item.completed}

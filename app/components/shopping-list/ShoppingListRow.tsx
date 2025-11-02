@@ -14,20 +14,12 @@ interface ShoppingListRowProps {
 
 export default function ShoppingListRow({
   list,
-  onDelete,
   currentUserId,
 }: ShoppingListRowProps) {
   const isOwner = list.owner.id === currentUserId;
-  
-  const getLastUpdated = () => {
-    const hours = Math.floor(Math.random() * 72);
-    if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
-    const days = Math.floor(hours / 24);
-    return `${days} day${days !== 1 ? "s" : ""} ago`;
-  };
 
   return (
-    <Card className="w-full lg:w-[280px] hover:shadow-md transition-shadow">
+    <Card className="w-full lg:w-[280px] hover:shadow-md transition-shadow border-gray-300">
       <CardHeader className="pb-3">
         <h3 className="text-lg font-semibold text-gray-900">{list.name}</h3>
       </CardHeader>
@@ -43,9 +35,6 @@ export default function ShoppingListRow({
           >
             {isOwner ? "Owner" : "Member"}
           </Badge>
-          <span className="text-sm text-gray-500">
-            Last updated: {getLastUpdated()}
-          </span>
         </div>
         <Button
           asChild
