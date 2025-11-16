@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShoppingList } from "@/app/types";
 import ShoppingListsTable from "@/app/components/shopping-list/ShoppingListsTable";
-import CreateListModal from "@/app/components/shopping-list/CreateListModal";
 import Sidebar from "@/app/components/layout/Sidebar";
 
 const INITIAL_MOCK_LISTS: ShoppingList[] = [
@@ -64,32 +63,18 @@ const INITIAL_MOCK_LISTS: ShoppingList[] = [
   },
 ];
 
-export default function ShoppingListsPage() {
+export default function ArchivedShoppingListsPage() {
   const router = useRouter();
   const [lists, setLists] = useState<ShoppingList[]>(() => [
     ...INITIAL_MOCK_LISTS,
   ]);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const currentUserId = "user1";
 
   const filteredLists = useMemo(
-    () => lists.filter((list) => !list.archived),
+    () => lists.filter((list) => list.archived),
     [lists]
   );
-
-  const handleCreateList = (name: string) => {
-    const newList: ShoppingList = {
-      id: `list_${Date.now()}`,
-      name,
-      owner: { id: currentUserId, name: "John Doe" },
-      members: [],
-      items: [],
-      archived: false,
-    };
-    setLists([...lists, newList]);
-    router.push(`/shopping-list/${newList.id}`);
-  };
 
   const handleDeleteList = (id: string) => {
     setLists(lists.filter((list) => list.id !== id));
@@ -101,33 +86,27 @@ export default function ShoppingListsPage() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <Sidebar onCreateList={() => setIsCreateModalOpen(true)} />
+      <Sidebar />
       <main className="flex-1 bg-white lg:bg-white lg:ml-0 p-4 lg:p-8 w-full lg:w-auto">
         <div className="lg:hidden flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Shopping Lists</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Archived Lists</h1>
         </div>
 
         <div className="hidden lg:block mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            My Shopping Lists
+            Archived Shopping Lists
           </h1>
-          <p className="text-gray-600">Here are your active shopping lists.</p>
+          <p className="text-gray-600">
+            Here are your archived shopping lists.
+          </p>
         </div>
-
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="lg:hidden w-full mb-6 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2"
-        >
-          <span className="text-xl">+</span>
-          Create New List
-        </button>
 
         <div className="lg:hidden mb-4">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">
-            Active Lists
+            Archived Lists
           </h2>
           <p className="text-sm text-gray-600">
-            Here are your currently active shopping lists.
+            Here are your archived shopping lists.
           </p>
         </div>
 
@@ -137,13 +116,8 @@ export default function ShoppingListsPage() {
           onDelete={handleDeleteList}
           currentUserId={currentUserId}
         />
-
-        <CreateListModal
-          isOpen={isCreateModalOpen}
-          onSubmit={handleCreateList}
-          onClose={() => setIsCreateModalOpen(false)}
-        />
       </main>
     </div>
   );
 }
+

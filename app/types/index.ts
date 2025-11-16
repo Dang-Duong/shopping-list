@@ -16,4 +16,5 @@ export interface ShoppingList {
   owner: User;
   members: User[];
   items: Item[];
+  archived?: boolean;
 }
