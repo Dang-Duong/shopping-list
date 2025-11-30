@@ -1,10 +1,10 @@
 "use client";
 
-import { ShoppingList } from "@/app/types";
+import { ClientShoppingList } from "@/app/services/types";
 import ShoppingListRow from "./ShoppingListRow";
 
 interface ShoppingListsTableProps {
-  lists: ShoppingList[];
+  lists: ClientShoppingList[];
   onSelectList: (id: string) => void;
   onDelete: (id: string) => void;
   currentUserId: string;

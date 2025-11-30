@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShoppingList } from "@/app/types";
+import { ClientShoppingList } from "@/app/services/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Trash2 } from "lucide-react";
 import DeleteConfirmationDialog from "./DeleteConfirmationDialog";
 
 interface ShoppingListRowProps {
-  list: ShoppingList;
+  list: ClientShoppingList;
   onDelete: (id: string) => void;
   currentUserId: string;
 }

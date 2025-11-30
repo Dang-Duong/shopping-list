@@ -3,155 +3,229 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ShoppingList, Item, User } from "@/app/types";
+import { Item, User } from "@/app/types";
+import {
+  ClientShoppingList,
+  shoppingListService,
+  itemService,
+  memberService,
+  ApiError,
+} from "@/app/services";
 import MemberList from "@/app/components/shopping-list/MemberList";
 import ProductTable from "@/app/components/shopping-list/ProductTable";
 import { Button } from "@/components/ui/button";
 import Sidebar from "@/app/components/layout/Sidebar";
+import LoadingSpinner from "@/app/components/shopping-list/LoadingSpinner";
+import ErrorDisplay from "@/app/components/shopping-list/ErrorDisplay";
 import { ArrowLeft, Menu } from "lucide-react";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const MOCK_LISTS_DATA: Record<string, ShoppingList> = {
-  "1": {
-    id: "1",
-    name: "Groceries for the Week",
-    owner: { id: "user1", name: "John Doe" },
-    members: [
-      { id: "user2", name: "Jane Smith" },
-      { id: "user3", name: "Peter Jones" },
-    ],
-    items: [
-      { id: "item1", name: "Milk", completed: false },
-      { id: "item2", name: "Bread", completed: false },
-      { id: "item3", name: "Eggs", completed: true },
-      { id: "item4", name: "Apples", completed: false },
-      { id: "item5", name: "Chicken Breast", completed: false },
-    ],
-  },
-  "2": {
-    id: "2",
-    name: "Party Supplies",
-    owner: { id: "user2", name: "Jane Smith" },
-    members: [{ id: "user1", name: "John Doe" }],
-    items: [
-      { id: "item4", name: "Balloons", completed: false },
-      { id: "item5", name: "Cake", completed: false },
-      { id: "item6", name: "Candles", completed: true },
-    ],
-  },
-  "3": {
-    id: "3",
-    name: "Hardware Store",
-    owner: { id: "user1", name: "John Doe" },
-    members: [],
-    items: [
-      { id: "item7", name: "Screws", completed: false },
-      { id: "item8", name: "Paint", completed: false },
-      { id: "item9", name: "Brushes", completed: false },
-    ],
-  },
-};
-
-const DEFAULT_MOCK_DATA: ShoppingList = {
-  id: "1",
-  name: "Groceries for the Week",
-  owner: { id: "user1", name: "John Doe" },
-  members: [
-    { id: "user2", name: "Jane Smith" },
-    { id: "user3", name: "Peter Jones" },
-  ],
-  items: [
-    { id: "item1", name: "Milk", completed: false },
-    { id: "item2", name: "Bread", completed: false },
-    { id: "item3", name: "Eggs", completed: true },
-    { id: "item4", name: "Apples", completed: false },
-    { id: "item5", name: "Chicken Breast", completed: false },
-  ],
-};
-
 export default function ShoppingListDetailPage({ params }: PageProps) {
   const router = useRouter();
-  const [shoppingList, setShoppingList] = useState<ShoppingList | null>(null);
+  const [shoppingList, setShoppingList] = useState<ClientShoppingList | null>(
+    null
+  );
   const [items, setItems] = useState<Item[]>([]);
   const [showActiveOnly, setShowActiveOnly] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const currentUserId = "user1";
 
-  useEffect(() => {
-    async function loadParams() {
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
       const resolvedParams = await params;
-      const listData = MOCK_LISTS_DATA[resolvedParams.id] || {
-        ...DEFAULT_MOCK_DATA,
-        id: resolvedParams.id,
-      };
+      const [listData, itemsData] = await Promise.all([
+        shoppingListService.getShoppingListDetail(resolvedParams.id),
+        itemService.getItems(resolvedParams.id),
+      ]);
       setShoppingList(listData);
-      setItems([...listData.items]);
+      setItems(itemsData);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to load shopping list";
+      setError(message);
+    } finally {
+      setIsLoading(false);
     }
-    loadParams();
+  };
+
+  useEffect(() => {
+    loadData();
   }, [params]);
 
-  const handleRename = (newName: string) => {
+  const handleRename = async (newName: string) => {
     if (!shoppingList) return;
-    setShoppingList({ ...shoppingList, name: newName });
-    setIsEditingName(false);
+    try {
+      setError(null);
+      const updated = await shoppingListService.renameShoppingList(
+        shoppingList.id,
+        newName
+      );
+      setShoppingList(updated);
+      setIsEditingName(false);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Failed to rename shopping list";
+      setError(message);
+    }
   };
 
-  const handleAddMemberByEmail = (email: string) => {
+  const handleAddMemberByEmail = async (email: string) => {
     if (!shoppingList) return;
-    const newMember: User = {
-      id: `user_${Date.now()}`,
-      name: email.split("@")[0],
-    };
-    setShoppingList({
-      ...shoppingList,
-      members: [...shoppingList.members, newMember],
-    });
+    try {
+      setError(null);
+      // In a real app, we'd need to resolve email to userId first
+      // For now, we'll use a mock userId
+      const userId = email.split("@")[0];
+      await memberService.addMember(shoppingList.id, userId);
+      // Reload to get updated members
+      const updated = await shoppingListService.getShoppingListDetail(
+        shoppingList.id
+      );
+      setShoppingList(updated);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to add member";
+      setError(message);
+    }
   };
 
-  const handleRemoveMember = (userId: string) => {
+  const handleRemoveMember = async (userId: string) => {
     if (!shoppingList) return;
-    setShoppingList({
-      ...shoppingList,
-      members: shoppingList.members.filter((m) => m.id !== userId),
-    });
+    try {
+      setError(null);
+      await memberService.removeMember(shoppingList.id, userId);
+      // Reload to get updated members
+      const updated = await shoppingListService.getShoppingListDetail(
+        shoppingList.id
+      );
+      setShoppingList(updated);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to remove member";
+      setError(message);
+    }
   };
 
-  const handleLeaveList = () => {
-    router.push("/");
+  const handleLeaveList = async () => {
+    if (!shoppingList) return;
+    try {
+      setError(null);
+      await memberService.leaveShoppingList(shoppingList.id);
+      router.push("/");
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to leave shopping list";
+      setError(message);
+    }
   };
 
-  const handleAddItem = (itemData: { name: string; quantity?: number }) => {
-    const newItem: Item = {
-      id: `item_${Date.now()}`,
-      name: itemData.name,
-      quantity: itemData.quantity,
-      completed: false,
-    };
-    setItems([...items, newItem]);
+  const handleAddItem = async (itemData: {
+    name: string;
+    quantity?: number;
+  }) => {
+    if (!shoppingList) return;
+    try {
+      setError(null);
+      const newItem = await itemService.addItem(shoppingList.id, itemData);
+      setItems([...items, newItem]);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to add item";
+      setError(message);
+    }
   };
 
-  const handleRemoveItem = (itemId: string) => {
-    setItems(items.filter((item) => item.id !== itemId));
+  const handleRemoveItem = async (itemId: string) => {
+    if (!shoppingList) return;
+    try {
+      setError(null);
+      await itemService.removeItem(shoppingList.id, itemId);
+      setItems(items.filter((item) => item.id !== itemId));
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to remove item";
+      setError(message);
+    }
   };
 
-  const handleToggleDone = (itemId: string) => {
-    setItems(
-      items.map((i) =>
-        i.id === itemId ? { ...i, completed: !i.completed } : i
-      )
+  const handleToggleDone = async (itemId: string) => {
+    if (!shoppingList) return;
+    try {
+      setError(null);
+      const item = items.find((i) => i.id === itemId);
+      if (!item) return;
+
+      if (item.completed) {
+        await itemService.uncompleteItem(shoppingList.id, itemId);
+      } else {
+        await itemService.completeItem(shoppingList.id, itemId);
+      }
+
+      setItems(
+        items.map((i) =>
+          i.id === itemId ? { ...i, completed: !i.completed } : i
+        )
+      );
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to update item";
+      setError(message);
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!shoppingList) return;
+    try {
+      setError(null);
+      await shoppingListService.archiveShoppingList(shoppingList.id);
+      router.push("/archived");
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Failed to archive shopping list";
+      setError(message);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </div>
     );
-  };
+  }
+
+  if (error && !shoppingList) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <ErrorDisplay message={error} onRetry={loadData} />
+        </div>
+      </div>
+    );
+  }
 
   if (!shoppingList) {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar />
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">Shopping list not found</p>
         </div>
       </div>
     );
@@ -184,20 +258,38 @@ export default function ShoppingListDetailPage({ params }: PageProps) {
           </Link>
         </div>
 
+        {error && (
+          <div className="mb-4">
+            <ErrorDisplay message={error} />
+          </div>
+        )}
+
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {shoppingList.name}
           </h1>
           <div className="flex items-center gap-2">
             {isOwner && (
-              <Button
-                onClick={() => setIsEditingName(true)}
-                variant="outline"
-                size="sm"
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300"
-              >
-                Edit
-              </Button>
+              <>
+                <Button
+                  onClick={() => setIsEditingName(true)}
+                  variant="outline"
+                  size="sm"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-300"
+                >
+                  Edit
+                </Button>
+                {!shoppingList.archived && (
+                  <Button
+                    onClick={handleArchive}
+                    variant="outline"
+                    size="sm"
+                    className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-300"
+                  >
+                    Archive
+                  </Button>
+                )}
+              </>
             )}
             {isEditingName && (
               <div className="flex gap-2 max-w-md">

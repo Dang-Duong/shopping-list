@@ -1,103 +1,107 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingList } from "@/app/types";
+import {
+  ClientShoppingList,
+  shoppingListService,
+  ApiError,
+} from "@/app/services";
 import ShoppingListsTable from "@/app/components/shopping-list/ShoppingListsTable";
 import CreateListModal from "@/app/components/shopping-list/CreateListModal";
 import Sidebar from "@/app/components/layout/Sidebar";
+import LoadingSpinner from "@/app/components/shopping-list/LoadingSpinner";
+import ErrorDisplay from "@/app/components/shopping-list/ErrorDisplay";
 
-const INITIAL_MOCK_LISTS: ShoppingList[] = [
-  {
-    id: "1",
-    name: "Groceries",
-    owner: { id: "user1", name: "John Doe" },
-    members: [{ id: "user2", name: "Jane Smith" }],
-    items: [
-      { id: "item1", name: "Milk", completed: false },
-      { id: "item2", name: "Bread", completed: false },
-      { id: "item3", name: "Eggs", completed: true },
-    ],
-    archived: false,
-  },
-  {
-    id: "2",
-    name: "Party Supplies",
-    owner: { id: "user2", name: "Jane Smith" },
-    members: [{ id: "user1", name: "John Doe" }],
-    items: [
-      { id: "item4", name: "Balloons", completed: false },
-      { id: "item5", name: "Cake", completed: false },
-    ],
-    archived: false,
-  },
-  {
-    id: "3",
-    name: "Hardware Store",
-    owner: { id: "user1", name: "John Doe" },
-    members: [],
-    items: [
-      { id: "item6", name: "Screws", completed: false },
-      { id: "item7", name: "Paint", completed: false },
-    ],
-    archived: false,
-  },
-  {
-    id: "4",
-    name: "Old Christmas List",
-    owner: { id: "user1", name: "John Doe" },
-    members: [],
-    items: [
-      { id: "item8", name: "Gifts", completed: true },
-    ],
-    archived: true,
-  },
-  {
-    id: "5",
-    name: "Vacation Shopping",
-    owner: { id: "user2", name: "Jane Smith" },
-    members: [{ id: "user1", name: "John Doe" }],
-    items: [
-      { id: "item9", name: "Sunscreen", completed: true },
-    ],
-    archived: true,
-  },
-];
+type ShoppingList = ClientShoppingList;
 
 export default function ShoppingListsPage() {
   const router = useRouter();
-  const [lists, setLists] = useState<ShoppingList[]>(() => [
-    ...INITIAL_MOCK_LISTS,
-  ]);
+  const [lists, setLists] = useState<ShoppingList[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const currentUserId = "user1";
+
+  const loadLists = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await shoppingListService.getShoppingLists(false);
+      setLists(data);
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to load shopping lists";
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadLists();
+  }, []);
 
   const filteredLists = useMemo(
     () => lists.filter((list) => !list.archived),
     [lists]
   );
 
-  const handleCreateList = (name: string) => {
-    const newList: ShoppingList = {
-      id: `list_${Date.now()}`,
-      name,
-      owner: { id: currentUserId, name: "John Doe" },
-      members: [],
-      items: [],
-      archived: false,
-    };
-    setLists([...lists, newList]);
-    router.push(`/shopping-list/${newList.id}`);
+  const handleCreateList = async (name: string) => {
+    try {
+      setError(null);
+      const newList = await shoppingListService.createShoppingList(name);
+      setLists([...lists, newList]);
+      router.push(`/shopping-list/${newList.id}`);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Failed to create shopping list";
+      setError(message);
+    }
   };
 
-  const handleDeleteList = (id: string) => {
-    setLists(lists.filter((list) => list.id !== id));
+  const handleDeleteList = async (id: string) => {
+    try {
+      setError(null);
+      await shoppingListService.deleteShoppingList(id);
+      setLists(lists.filter((list) => list.id !== id));
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "Failed to delete shopping list";
+      setError(message);
+    }
   };
 
   const handleSelectList = (id: string) => {
     router.push(`/shopping-list/${id}`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar onCreateList={() => setIsCreateModalOpen(true)} />
+        <main className="flex-1 bg-white lg:bg-white lg:ml-0 p-4 lg:p-8 w-full lg:w-auto">
+          <LoadingSpinner />
+        </main>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar onCreateList={() => setIsCreateModalOpen(true)} />
+        <main className="flex-1 bg-white lg:bg-white lg:ml-0 p-4 lg:p-8 w-full lg:w-auto">
+          <ErrorDisplay message={error} onRetry={loadLists} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">
