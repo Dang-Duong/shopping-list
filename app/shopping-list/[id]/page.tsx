@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Item, User } from "@/app/types";
+import { Item } from "@/app/types";
 import {
   ClientShoppingList,
   shoppingListService,
@@ -11,6 +11,7 @@ import {
   memberService,
   ApiError,
 } from "@/app/services";
+import { useAuth } from "@/app/contexts/AuthContext";
 import MemberList from "@/app/components/shopping-list/MemberList";
 import ProductTable from "@/app/components/shopping-list/ProductTable";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ interface PageProps {
 
 export default function ShoppingListDetailPage({ params }: PageProps) {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [shoppingList, setShoppingList] = useState<ClientShoppingList | null>(
     null
   );
@@ -34,7 +36,13 @@ export default function ShoppingListDetailPage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUserId = "user1";
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
+
+  const currentUserId = user?.id || "";
 
   const loadData = async () => {
     try {
@@ -57,8 +65,11 @@ export default function ShoppingListDetailPage({ params }: PageProps) {
   };
 
   useEffect(() => {
-    loadData();
-  }, [params]);
+    if (user) {
+      loadData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params, user]);
 
   const handleRename = async (newName: string) => {
     if (!shoppingList) return;
@@ -198,7 +209,7 @@ export default function ShoppingListDetailPage({ params }: PageProps) {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar />
@@ -207,6 +218,10 @@ export default function ShoppingListDetailPage({ params }: PageProps) {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   if (error && !shoppingList) {

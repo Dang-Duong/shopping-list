@@ -1,18 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, ListTodo, Archive, User, Menu, X } from "lucide-react";
+import { Plus, ListTodo, Archive, User, Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/app/contexts/AuthContext";
 
 export default function Sidebar({ onCreateList }: { onCreateList?: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  const userName = "John Doe";
-  const userEmail = "john.doe@email.com";
+  const userName = user?.name || "Guest";
+  const userEmail = user?.email || "";
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   const isShoppingListsActive = pathname === "/";
   const isArchivedActive = pathname === "/archived";
@@ -89,8 +97,8 @@ export default function Sidebar({ onCreateList }: { onCreateList?: () => void })
           </Link>
         </nav>
 
-        {onCreateList && (
-          <div className="p-4 border-t border-gray-200">
+        <div className="p-4 border-t border-gray-200 space-y-2">
+          {onCreateList && (
             <Button
               onClick={() => {
                 onCreateList();
@@ -101,8 +109,16 @@ export default function Sidebar({ onCreateList }: { onCreateList?: () => void })
               <Plus className="w-4 h-4 mr-2" />
               Create New List
             </Button>
-          </div>
-        )}
+          )}
+          <Button
+            onClick={handleLogout}
+            variant="outline"
+            className="w-full border-gray-300 text-gray-700 hover:bg-gray-100"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </aside>
     </>
   );

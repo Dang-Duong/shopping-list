@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ClientShoppingList, shoppingListService, ApiError } from "@/app/services";
+import { useAuth } from "@/app/contexts/AuthContext";
 import ShoppingListsTable from "@/app/components/shopping-list/ShoppingListsTable";
 import Sidebar from "@/app/components/layout/Sidebar";
 import LoadingSpinner from "@/app/components/shopping-list/LoadingSpinner";
@@ -12,11 +13,33 @@ type ShoppingList = ClientShoppingList;
 
 export default function ArchivedShoppingListsPage() {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const currentUserId = "user1";
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner />
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  const currentUserId = user.id;
 
   const loadLists = async () => {
     try {

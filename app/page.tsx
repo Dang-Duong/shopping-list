@@ -7,6 +7,7 @@ import {
   shoppingListService,
   ApiError,
 } from "@/app/services";
+import { useAuth } from "@/app/contexts/AuthContext";
 import ShoppingListsTable from "@/app/components/shopping-list/ShoppingListsTable";
 import CreateListModal from "@/app/components/shopping-list/CreateListModal";
 import Sidebar from "@/app/components/layout/Sidebar";
@@ -17,12 +18,19 @@ type ShoppingList = ClientShoppingList;
 
 export default function ShoppingListsPage() {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const currentUserId = "user1";
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading, router]);
+
+  const currentUserId = user?.id || "";
 
   const loadLists = async () => {
     try {
@@ -44,8 +52,8 @@ export default function ShoppingListsPage() {
   }, []);
 
   const filteredLists = useMemo(
-    () => lists.filter((list) => !list.archived),
-    [lists]
+    () => (user ? lists.filter((list) => !list.archived) : []),
+    [lists, user]
   );
 
   const handleCreateList = async (name: string) => {
@@ -81,7 +89,7 @@ export default function ShoppingListsPage() {
     router.push(`/shopping-list/${id}`);
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <Sidebar onCreateList={() => setIsCreateModalOpen(true)} />
@@ -90,6 +98,10 @@ export default function ShoppingListsPage() {
         </main>
       </div>
     );
+  }
+
+  if (!user) {
+    return null;
   }
 
   if (error) {

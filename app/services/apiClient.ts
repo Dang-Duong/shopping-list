@@ -39,7 +39,20 @@ export async function apiRequest<T>(
 
   // Add authentication headers if required
   if (requireAuth) {
-    headers["x-uu-identity"] = API_CONFIG.mockUser.uuIdentity;
+    // Get user from localStorage (client-side only)
+    let userId = API_CONFIG.mockUser.uuIdentity;
+    if (typeof window !== "undefined") {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+        try {
+          const user = JSON.parse(storedUser);
+          userId = user.id;
+        } catch {
+          // Fall back to mock user
+        }
+      }
+    }
+    headers["x-uu-identity"] = userId;
     headers["x-awid"] = API_CONFIG.mockUser.awid;
     headers["x-uu-profile"] = API_CONFIG.mockUser.profile;
   }
