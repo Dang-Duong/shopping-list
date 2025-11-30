@@ -14,6 +14,7 @@ import {
   ErrorMessages,
   createErrorMap,
 } from "@/app/utils/errors";
+import { getShoppingListOwnerId, archiveShoppingList } from "@/lib/db/shoppingList";
 
 export async function PUT(request: NextRequest) {
   // Parse request body
@@ -59,9 +60,21 @@ export async function PUT(request: NextRequest) {
   }
 
   // Authorization: Owner only
-  // Mock check - in production would query database for shopping list owner
-  const mockOwnerId = "mock-owner-id"; // Would be fetched from database
-  const ownerCheck = requireOwner(identity, mockOwnerId);
+  // Get shopping list owner ID from database
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(
+    validation.dtoIn.id
+  );
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListArchiveDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListArchiveDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  const ownerCheck = requireOwner(identity, ownerId);
   if (!ownerCheck.isOwner) {
     return NextResponse.json(
       {
@@ -72,13 +85,27 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Archive shopping list in database
+  const { shoppingList, errors: archiveErrors } = await archiveShoppingList(
+    validation.dtoIn.id
+  );
+
+  if (!shoppingList) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListArchiveDtoOut,
+        uuAppErrorMap: archiveErrors,
+      } as UuAppResponse<ShoppingListArchiveDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListArchiveDtoOut = {
     awid: identity.awid,
-    id: validation.dtoIn.id,
-    name: "...", // Would be fetched from database
-    state: "...", // Would be set by application logic
-    ownerUuIdentity: identity.uuIdentity,
+    id: shoppingList.id,
+    name: shoppingList.name,
+    state: shoppingList.archived ? "archived" : "active",
+    ownerUuIdentity: shoppingList.ownerId,
   };
 
   return NextResponse.json({
@@ -86,7 +113,8 @@ export async function PUT(request: NextRequest) {
     uuAppErrorMap: mergeErrorMaps(
       validation.errors,
       authErrors,
-      ownerCheck.errors
+      ownerCheck.errors,
+      archiveErrors
     ),
   } as UuAppResponse<ShoppingListArchiveDtoOut>);
 }

@@ -12,6 +12,7 @@ import {
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps, ErrorCode, ErrorMessages, createErrorMap } from "@/app/utils/errors";
+import { getShoppingListOwnerId, deleteShoppingList } from "@/lib/db/shoppingList";
 
 export async function DELETE(request: NextRequest) {
   // Parse request body
@@ -53,9 +54,21 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Authorization: Owner only
-  // Mock check - in production would query database for shopping list owner
-  const mockOwnerId = "mock-owner-id"; // Would be fetched from database
-  const ownerCheck = requireOwner(identity, mockOwnerId);
+  // Get shopping list owner ID from database
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(
+    validation.dtoIn.id
+  );
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListDeleteDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListDeleteDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  const ownerCheck = requireOwner(identity, ownerId);
   if (!ownerCheck.isOwner) {
     return NextResponse.json(
       {
@@ -66,7 +79,21 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Delete shopping list from database
+  const { success, errors: deleteErrors } = await deleteShoppingList(
+    validation.dtoIn.id
+  );
+
+  if (!success) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListDeleteDtoOut,
+        uuAppErrorMap: deleteErrors,
+      } as UuAppResponse<ShoppingListDeleteDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListDeleteDtoOut = {
     awid: identity.awid,
     id: validation.dtoIn.id,
@@ -74,7 +101,12 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, ownerCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(
+      validation.errors,
+      authErrors,
+      ownerCheck.errors,
+      deleteErrors
+    ),
   } as UuAppResponse<ShoppingListDeleteDtoOut>);
 }
 

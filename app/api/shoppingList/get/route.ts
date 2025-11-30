@@ -9,9 +9,14 @@ import { extractUserIdentity, requireOwnerOrMember } from "@/app/middleware/auth
 import { validateShoppingListGetDtoIn } from "@/app/validation";
 import {
   ShoppingListGetDtoOut,
+  ItemDtoOut,
+  MemberDtoOut,
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps } from "@/app/utils/errors";
+import { getShoppingListById, getShoppingListOwnerId } from "@/lib/db/shoppingList";
+import { getItems } from "@/lib/db/item";
+import { getMembers, getMemberIds } from "@/lib/db/member";
 
 export async function GET(request: NextRequest) {
   // Extract query parameters
@@ -54,11 +59,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Get shopping list owner ID for authorization
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(id);
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListGetDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListGetDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  // Get member IDs for authorization
+  const { memberIds } = await getMemberIds(id);
+
   // Authorization: Owner or Member
-  // Mock check - in production would query database
-  const mockOwnerId = "mock-owner-id";
-  const mockMemberIds: string[] = [];
-  const memberCheck = requireOwnerOrMember(identity, mockOwnerId, mockMemberIds);
+  const memberCheck = requireOwnerOrMember(identity, ownerId, memberIds);
   if (!memberCheck.isAuthorized) {
     return NextResponse.json(
       {
@@ -69,20 +86,61 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Get shopping list details
+  const { shoppingList, errors: listErrors } = await getShoppingListById(id);
+  if (!shoppingList) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListGetDtoOut,
+        uuAppErrorMap: listErrors,
+      } as UuAppResponse<ShoppingListGetDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  // Get items
+  const { items: itemList, errors: itemErrors } = await getItems(id);
+  const items: ItemDtoOut[] = itemList.map((item) => ({
+    id: item.id,
+    name: item.name,
+    productId: item.productId,
+    quantity: item.quantity,
+    fit: item.fit,
+    completed: item.completed,
+    createdAt: item.createdAt?.toISOString(),
+    updatedAt: item.updatedAt?.toISOString(),
+  }));
+
+  // Get members
+  const { members, errors: memberErrors } = await getMembers(id);
+  const memberDtos: MemberDtoOut[] = members.map((member) => ({
+    id: member.id,
+    userId: member.userId,
+    shoppingListId: member.shoppingListId,
+    role: member.role,
+    joinedAt: member.joinedAt?.toISOString(),
+  }));
+
   const dtoOut: ShoppingListGetDtoOut = {
     awid: identity.awid,
-    id: validation.dtoIn.id,
-    name: "...", // Would be fetched from database
-    state: "...", // Would be set by application logic
-    ownerUuIdentity: identity.uuIdentity,
-    items: [], // Would be fetched from database
-    members: [], // Would be fetched from database
+    id: shoppingList.id,
+    name: shoppingList.name,
+    state: shoppingList.archived ? "archived" : "active",
+    ownerUuIdentity: shoppingList.ownerId,
+    items,
+    members: memberDtos,
   };
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, memberCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(
+      validation.errors,
+      authErrors,
+      memberCheck.errors,
+      listErrors,
+      itemErrors,
+      memberErrors
+    ),
   } as UuAppResponse<ShoppingListGetDtoOut>);
 }
 

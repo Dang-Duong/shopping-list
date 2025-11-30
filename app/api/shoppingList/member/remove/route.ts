@@ -12,6 +12,8 @@ import {
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps, ErrorCode, ErrorMessages, createErrorMap } from "@/app/utils/errors";
+import { getShoppingListOwnerId } from "@/lib/db/shoppingList";
+import { removeMember } from "@/lib/db/member";
 
 export async function DELETE(request: NextRequest) {
   // Parse request body
@@ -53,9 +55,21 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Authorization: Owner only
-  // Mock check - in production would query database for shopping list owner
-  const mockOwnerId = "mock-owner-id"; // Would be fetched from database
-  const ownerCheck = requireOwner(identity, mockOwnerId);
+  // Get shopping list owner ID from database
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(
+    validation.dtoIn.shoppingListId
+  );
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListMemberRemoveDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListMemberRemoveDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  const ownerCheck = requireOwner(identity, ownerId);
   if (!ownerCheck.isOwner) {
     return NextResponse.json(
       {
@@ -66,7 +80,22 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Remove member from shopping list in database
+  const { success, errors: removeErrors } = await removeMember(
+    validation.dtoIn.shoppingListId,
+    validation.dtoIn.userId
+  );
+
+  if (!success) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListMemberRemoveDtoOut,
+        uuAppErrorMap: removeErrors,
+      } as UuAppResponse<ShoppingListMemberRemoveDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListMemberRemoveDtoOut = {
     awid: identity.awid,
     shoppingListId: validation.dtoIn.shoppingListId,
@@ -75,7 +104,12 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, ownerCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(
+      validation.errors,
+      authErrors,
+      ownerCheck.errors,
+      removeErrors
+    ),
   } as UuAppResponse<ShoppingListMemberRemoveDtoOut>);
 }
 

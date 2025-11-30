@@ -12,6 +12,9 @@ import {
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps, ErrorCode, ErrorMessages, createErrorMap } from "@/app/utils/errors";
+import { getShoppingListOwnerId } from "@/lib/db/shoppingList";
+import { updateItemCompletion } from "@/lib/db/item";
+import { getMemberIds } from "@/lib/db/member";
 
 export async function PUT(request: NextRequest) {
   // Parse request body
@@ -53,10 +56,24 @@ export async function PUT(request: NextRequest) {
   }
 
   // Authorization: Owner or Member
-  // Mock check - in production would query database
-  const mockOwnerId = "mock-owner-id";
-  const mockMemberIds: string[] = [];
-  const memberCheck = requireOwnerOrMember(identity, mockOwnerId, mockMemberIds);
+  // Get shopping list owner ID from database
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(
+    validation.dtoIn.shoppingListId
+  );
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListItemCompleteDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListItemCompleteDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  // Get member IDs from database
+  const { memberIds } = await getMemberIds(validation.dtoIn.shoppingListId);
+
+  const memberCheck = requireOwnerOrMember(identity, ownerId, memberIds);
   if (!memberCheck.isAuthorized) {
     return NextResponse.json(
       {
@@ -67,17 +84,38 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Update item completion status in database
+  const { item, errors: updateErrors } = await updateItemCompletion(
+    validation.dtoIn.shoppingListId,
+    validation.dtoIn.itemId,
+    true
+  );
+
+  if (!item) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListItemCompleteDtoOut,
+        uuAppErrorMap: updateErrors,
+      } as UuAppResponse<ShoppingListItemCompleteDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListItemCompleteDtoOut = {
     awid: identity.awid,
     shoppingListId: validation.dtoIn.shoppingListId,
     itemId: validation.dtoIn.itemId,
-    completed: true,
+    completed: item.completed,
   };
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, memberCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(
+      validation.errors,
+      authErrors,
+      memberCheck.errors,
+      updateErrors
+    ),
   } as UuAppResponse<ShoppingListItemCompleteDtoOut>);
 }
 

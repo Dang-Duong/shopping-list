@@ -12,6 +12,8 @@ import {
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps, ErrorCode, ErrorMessages, createErrorMap } from "@/app/utils/errors";
+import { isMember } from "@/lib/db/member";
+import { removeMember } from "@/lib/db/member";
 
 export async function POST(request: NextRequest) {
   // Parse request body
@@ -53,20 +55,42 @@ export async function POST(request: NextRequest) {
   }
 
   // Authorization: Member only
-  // Mock check - in production would query database for shopping list members
-  const mockMemberIds = [identity.uuIdentity]; // Would be fetched from database
-  const memberCheck = requireMember(identity, mockMemberIds);
-  if (!memberCheck.isMember) {
+  // Check if user is a member of the shopping list
+  const userIsMember = await isMember(
+    validation.dtoIn.shoppingListId,
+    identity.uuIdentity
+  );
+
+  if (!userIsMember) {
     return NextResponse.json(
       {
         dtoOut: {} as ShoppingListMemberLeaveDtoOut,
-        uuAppErrorMap: memberCheck.errors,
+        uuAppErrorMap: createErrorMap(
+          "member",
+          ErrorCode.NOT_MEMBER,
+          "User is not a member of this shopping list"
+        ),
       } as UuAppResponse<ShoppingListMemberLeaveDtoOut>,
       { status: 403 }
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Remove member from shopping list in database
+  const { success, errors: removeErrors } = await removeMember(
+    validation.dtoIn.shoppingListId,
+    identity.uuIdentity
+  );
+
+  if (!success) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListMemberLeaveDtoOut,
+        uuAppErrorMap: removeErrors,
+      } as UuAppResponse<ShoppingListMemberLeaveDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListMemberLeaveDtoOut = {
     awid: identity.awid,
     shoppingListId: validation.dtoIn.shoppingListId,
@@ -75,7 +99,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, memberCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, removeErrors),
   } as UuAppResponse<ShoppingListMemberLeaveDtoOut>);
 }
 

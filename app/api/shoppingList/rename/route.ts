@@ -12,6 +12,7 @@ import {
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps, ErrorCode, ErrorMessages, createErrorMap } from "@/app/utils/errors";
+import { getShoppingListOwnerId, updateShoppingListName } from "@/lib/db/shoppingList";
 
 export async function PUT(request: NextRequest) {
   // Parse request body
@@ -53,9 +54,21 @@ export async function PUT(request: NextRequest) {
   }
 
   // Authorization: Owner only
-  // Mock check - in production would query database for shopping list owner
-  const mockOwnerId = "mock-owner-id"; // Would be fetched from database
-  const ownerCheck = requireOwner(identity, mockOwnerId);
+  // Get shopping list owner ID from database
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(
+    validation.dtoIn.id
+  );
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListRenameDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListRenameDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  const ownerCheck = requireOwner(identity, ownerId);
   if (!ownerCheck.isOwner) {
     return NextResponse.json(
       {
@@ -66,18 +79,38 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Update shopping list name in database
+  const { shoppingList, errors: updateErrors } = await updateShoppingListName(
+    validation.dtoIn.id,
+    validation.dtoIn.name
+  );
+
+  if (!shoppingList) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListRenameDtoOut,
+        uuAppErrorMap: updateErrors,
+      } as UuAppResponse<ShoppingListRenameDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListRenameDtoOut = {
     awid: identity.awid,
-    id: validation.dtoIn.id,
-    name: validation.dtoIn.name,
-    state: "...", // Would be set by application logic
-    ownerUuIdentity: identity.uuIdentity,
+    id: shoppingList.id,
+    name: shoppingList.name,
+    state: shoppingList.archived ? "archived" : "active",
+    ownerUuIdentity: shoppingList.ownerId,
   };
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, ownerCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(
+      validation.errors,
+      authErrors,
+      ownerCheck.errors,
+      updateErrors
+    ),
   } as UuAppResponse<ShoppingListRenameDtoOut>);
 }
 

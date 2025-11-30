@@ -7,8 +7,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractUserIdentity } from "@/app/middleware/auth";
 import { validateShoppingListListDtoIn } from "@/app/validation";
-import { ShoppingListListDtoOut, UuAppResponse } from "@/app/dto";
+import {
+  ShoppingListListDtoOut,
+  ShoppingListDtoOut,
+  UuAppResponse,
+} from "@/app/dto";
 import { mergeErrorMaps } from "@/app/utils/errors";
+import { getShoppingLists } from "@/lib/db/shoppingList";
 
 export async function GET(request: NextRequest) {
   // Extract query parameters
@@ -41,17 +46,29 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Authorization: Any authenticated user can list shopping lists
-  // (filtering by ownership/membership would be done in application logic)
+  // Get shopping lists from database
+  const { shoppingLists, errors: dbErrors } = await getShoppingLists(
+    identity.uuIdentity,
+    validation.dtoIn.archived
+  );
 
-  // Return dtoOut with input data echoed back
+  // Convert to DTO format
+  const items: ShoppingListDtoOut[] = shoppingLists.map((list) => ({
+    awid: identity.awid,
+    id: list.id,
+    name: list.name,
+    state: list.archived ? "archived" : "active",
+    ownerUuIdentity: list.ownerId,
+    archived: list.archived,
+  }));
+
   const dtoOut: ShoppingListListDtoOut = {
     awid: identity.awid,
-    items: [], // Empty array - application logic not implemented
+    items,
   };
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors),
+    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, dbErrors),
   } as UuAppResponse<ShoppingListListDtoOut>);
 }

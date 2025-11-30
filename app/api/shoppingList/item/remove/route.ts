@@ -12,6 +12,9 @@ import {
   UuAppResponse,
 } from "@/app/dto";
 import { mergeErrorMaps, ErrorCode, ErrorMessages, createErrorMap } from "@/app/utils/errors";
+import { getShoppingListOwnerId } from "@/lib/db/shoppingList";
+import { removeItem } from "@/lib/db/item";
+import { getMemberIds } from "@/lib/db/member";
 
 export async function DELETE(request: NextRequest) {
   // Parse request body
@@ -53,10 +56,24 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Authorization: Owner or Member
-  // Mock check - in production would query database
-  const mockOwnerId = "mock-owner-id";
-  const mockMemberIds: string[] = [];
-  const memberCheck = requireOwnerOrMember(identity, mockOwnerId, mockMemberIds);
+  // Get shopping list owner ID from database
+  const { ownerId, errors: ownerErrors } = await getShoppingListOwnerId(
+    validation.dtoIn.shoppingListId
+  );
+  if (!ownerId) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListItemRemoveDtoOut,
+        uuAppErrorMap: ownerErrors,
+      } as UuAppResponse<ShoppingListItemRemoveDtoOut>,
+      { status: 404 }
+    );
+  }
+
+  // Get member IDs from database
+  const { memberIds } = await getMemberIds(validation.dtoIn.shoppingListId);
+
+  const memberCheck = requireOwnerOrMember(identity, ownerId, memberIds);
   if (!memberCheck.isAuthorized) {
     return NextResponse.json(
       {
@@ -67,7 +84,22 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  // Return dtoOut with input data echoed back
+  // Remove item from shopping list in database
+  const { success, errors: removeErrors } = await removeItem(
+    validation.dtoIn.shoppingListId,
+    validation.dtoIn.itemId
+  );
+
+  if (!success) {
+    return NextResponse.json(
+      {
+        dtoOut: {} as ShoppingListItemRemoveDtoOut,
+        uuAppErrorMap: removeErrors,
+      } as UuAppResponse<ShoppingListItemRemoveDtoOut>,
+      { status: 404 }
+    );
+  }
+
   const dtoOut: ShoppingListItemRemoveDtoOut = {
     awid: identity.awid,
     shoppingListId: validation.dtoIn.shoppingListId,
@@ -76,7 +108,12 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({
     dtoOut,
-    uuAppErrorMap: mergeErrorMaps(validation.errors, authErrors, memberCheck.errors),
+    uuAppErrorMap: mergeErrorMaps(
+      validation.errors,
+      authErrors,
+      memberCheck.errors,
+      removeErrors
+    ),
   } as UuAppResponse<ShoppingListItemRemoveDtoOut>);
 }
 
